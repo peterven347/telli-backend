@@ -17,8 +17,8 @@ const transporter = nodemailer.createTransport({
     port: 465,
     secure: true,
     auth: {
-        user: "peterolanrewaju22@gmail.com",
-        pass: "cjxf pgoo alar sdli"
+        user: process.env.EMAIL_USER,
+        pass: process.env.EMAIL_PASS
     }
 });
 
@@ -40,7 +40,7 @@ router.post("/sign-up", (req, res) => {
         subject: "Verify your mail",
         html: `<p>Welcome! <a href="http://${domain}/api/user/verify/${token}">click to verify<a/></p>`
     }
-
+    
     User.findOne({email: email})
         .then(result => {
             if (result) {
