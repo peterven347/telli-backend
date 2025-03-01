@@ -1,0 +1,49 @@
+{
+    "domain": "university of Ibadan",
+    "creator": "peterven347",
+    "date created": "datestring",
+    "delegates": ["userid1", "userid2", "userid3"],
+    "allowed view ids": ["ty32", "td33", "jy87", "nd37", "sg65", "js54"],
+    "image": "imagelink",
+    "pubic": true,
+    "sectors": [
+        {
+            "title": "computer science",
+            "issues": [
+                {
+                    "note": "short  note on issue",
+                    "pictures": ["imglink1", "imglink2", "imglink3"],
+                    "mark resolved by": ["userid1", "userid2", "userid3"],
+                    "date created": "datestring",
+                    "date resolved": "datestring"
+                },
+                {
+                    "note": "short  note on issue",
+                    "pictures": ["imglink1", "imglink2", "imglink3"],
+                    "mark resolved by": ["userid1", "userid2", "userid3"],
+                    "date created": "datestring",
+                    "date resolved": "datestring"
+                }
+            ]
+        },
+        {
+            "title": "zik hall",
+            "issues": [
+                {
+                    "note": "short  note on issue",
+                    "pictures": ["imglink1", "imglink2", "imglink3"],
+                    "mark resolved by": ["userid1", "userid2", "userid3"],
+                    "date created": "datestring",
+                    "date resolved": "datestring"
+                },
+                {
+                    "note": "short  note on issue",
+                    "pictures": ["imglink1", "imglink2", "imglink3"],
+                    "mark resolved by": ["userid1", "userid2", "userid3"],
+                    "date created": "datestring",
+                    "date resolved": "datestring"
+                }
+            ]
+        }
+    ]
+}
