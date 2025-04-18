@@ -10,6 +10,7 @@ function auth(req, res, next) {
             req.auth = { message: "no auth"}
         } else {
             const token = authHeader.split(" ")[1]
+            // console.log(authHeader)
             const revoked = authHeader.split(" ")[2] === "exp"
             if (revoked_access_tokens.includes(token)) {
                 req.auth = { exp: true }
@@ -19,7 +20,7 @@ function auth(req, res, next) {
                         if (err.message.name === "TokenExpiredError"){
                             return req.auth = { exp: true }
                         }
-                        return req.auth = { exp: true }
+                        return req.auth = { exp: "invalid token" }
                     } else if (revoked) {
                         revoked_access_tokens.push(token)
                         return req.auth = { exp: true }

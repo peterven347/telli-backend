@@ -4,19 +4,40 @@ const UserModel = require("./user")
 
 const mainSchema = new Schema({
     domain: { type: String, required: true },
-    creator: { type: String, required: true }, // { type: mongoose.Schema.Types.ObjectId, ref: UserModel } instead
-    delegates: [{
-        // _id: false,
-        _id: { type: mongoose.Schema.Types.ObjectId, ref: UserModel },
-        name: String,
-        role: { type: String, enum: ["member", "admin"], default: "member" }
-    }],
+    creator: { type: mongoose.Schema.Types.ObjectId, ref: UserModel, index: true },
+    // creator: { type: String, required: true }, 
     logo: { type: String },
-    public: { type: Boolean, default: true },
+    status: { type: String, default: "public" },
     sectors: [{
-        _id: false,
-        title: String,
-        issues: [{
+		title: { type: String, required: true},
+        delegates: {
+            type: [String],
+			required: true,
+            index: true,
+			validate: {
+				validator: function (value) {
+				return Array.isArray(value) && value.length > 0;
+				},
+				message: 'At least one delegate is required.'
+			},
+        },
+        // delegates: {
+        //     type: [
+        //       {
+        //         _id: { type: String, ref: 'UserModel', required: true },
+        //         // _id: { type: mongoose.Schema.Types.ObjectId, ref: 'UserModel', required: true },
+        //         // name: { type: String, required: true },
+        //         // role: {
+        //         //   type: String,
+        //         //   enum: ['member', 'admin'],
+        //         //   default: 'member',
+        //         //   required: true,
+        //         // }
+        //       }
+        //     ],
+        //     required: true
+        //   },          
+        data: [{
             // _id: false,
             date_created: { type: Date, default: Date.now() },
             note: String,
@@ -33,5 +54,5 @@ const mainSchema = new Schema({
 },
 {timestamps: true});
 
-const Domain = mongoose.model('Domain', mainSchema)
-module.exports = Domain;
+const DomainModel = mongoose.model('Domain', mainSchema)
+module.exports = DomainModel;

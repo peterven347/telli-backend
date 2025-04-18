@@ -1,17 +1,23 @@
 require('dotenv').config()
 const bcryptjs = require("bcryptjs")
 const express = require("express")
+const fs = require("fs")
 const jwt = require("jsonwebtoken")
-const router = express.Router()
+const multer = require("multer")
 const nodemailer = require("nodemailer")
+const path = require("path")
+const router = express.Router()
+
 const Domain = require("../models/domain")
 const User = require("../models/user")
 const RefreshToken = require("../models/refresh_token")
 const { auth } = require("../middlewares/auth")
+const { default: mongoose } = require('mongoose')
 
 let pending_emails = [];
 let refresh_tokens_array = [];
-const domain = "192.168.202.133:3030"
+let generated_codes = [];
+const url_domain = "192.168.38.143:3030"
 const transporter = nodemailer.createTransport({
     host: "smtp.gmail.com",
     port: 465,
@@ -22,28 +28,47 @@ const transporter = nodemailer.createTransport({
     }
 });
 
-(async () => {
-    const result = await RefreshToken.find({})
-    refresh_tokens_array = result
-})();
+const storage = multer.diskStorage({
+    destination: (req, file, cb) => {
+        const dynamicDest = "files/domainImg";
+        if (!fs.existsSync(dynamicDest)) {
+            fs.mkdirSync(dynamicDest, { recursive: true });
+        }
+        cb(null, dynamicDest);
+    },
+    filename: (req, file, cb) => {
+        cb(null, Date.now().toString() + '-' + file.originalname)
+    }
+});
 
-router.get("/test", auth, (req, res) => {
-    res.send(req.auth)
+const fileFilter = (req, file, cb) => {
+    if (file.mimetype === "image/jpg" || file.mimetype === "image/jpeg" || file.mimetype === "image/png") {
+        cb(null, true)
+    } else {
+        cb(null, false)
+    }
+}
+
+const upload = multer({ storage: storage, fileFilter: fileFilter });
+
+// (async () => {
+//     await Domain.syncIndexes()
+//     const result = await RefreshToken.find({})
+//     refresh_tokens_array = result
+// })();
+
+router.get("/test", async(req, res) => {
+    const yy = await Domain.listIndexes()
+    console.log(yy)
+    res.end()
 })
 
 router.post("/sign-up", (req, res) => {
     const {first_name, last_name, email, phone_number, password} = req.body
-    const mailOptions = {
-        from: "resource-pro <peterolanrewaju22@gmail.com>",
-        to: email,
-        replyTo: "peterolanrewaju22+resoucepro@gmail.com",
-        subject: "Verify your mail",
-        html: `<p>Welcome! <a href="http://${domain}/api/user/verify/${token}">click to verify<a/></p>`
-    }
-    
     User.findOne({email: email})
         .then(result => {
             if (result) {
+                console.log("exists")
                 res.json({message: "email already exists"})
             } else {
                 bcryptjs.hash(password, 10)
@@ -65,9 +90,19 @@ router.post("/sign-up", (req, res) => {
                     process.env.EMAIL_VERI_KEY,
                     {expiresIn: "15m"}
                 )
+
+                const mailOptions = {
+                    from: "resource-pro <peterolanrewaju22@gmail.com>",
+                    to: email,
+                    replyTo: "peterolanrewaju22+resoucepro@gmail.com",
+                    subject: "Verify your mail",
+                    html: `<p>Welcome! <a href="http://${url_domain}/api/user/verify/${token}">click to verify<a/></p>`
+                }
                 transporter.sendMail(mailOptions, (err, info) => {
-                    if (err) return res.status(400).send(err.message)
-                    res.sendStatus(200)
+                    if (err) {
+                        return res.status(400).json({message: "an error occured, check that your details are complete"})
+                    }
+                    res.status(200).json({message: "A verification link has been sent to", resMail: email})
                 })
             }
         })
@@ -75,23 +110,23 @@ router.post("/sign-up", (req, res) => {
 
 router.get("/verify/:token", (req, res) => {
     const token = req.params.token
-    jwt.verify(token, process.env.EMAIL_VERI_KEY, (err, user) => {
+    jwt.verify(token, process.env.EMAIL_VERI_KEY, (err, _user) => {
         if (err){
             res.send("an error occured")
         } else {
-            let email = user.email
+            let email = _user.email
             let user = pending_emails.find(i => i.email === email)
             if (user) {
                 user = user.property
                 user.save()
                     .then(pending_emails = pending_emails.filter(i => i.email !== email))
-                    .then(res.send("Your email has been verified!"))
+                    .then(res.send("Your email has been verified!, go back and login"))
             } else {
-                const saved = User.findOne({ email: user.email })
+                const saved = User.findOne({ email: _user.email })
                 if (saved) {
-                    res.send("Your email has already been verified!")
+                    res.send("Your email has already been verified!, go back and login")
                 } else {
-                    res.send("Please complete sign up")
+                    res.send("Please complete sign up click here")
                 }
             }
         }
@@ -105,17 +140,19 @@ router.post("/login", (req, res) => {
         to: email,
         replyTo: "peterolanrewaju22+resoucepro@gmail.com",
         subject: "Login detected",
-        html: `<p>Login detected </p>`
+        html: `<p>Take action if this wasnt you</p>`
     }
 
     User.findOne({ email: email})
         .then(user => {
             if (user == null){
-                res.json({ message: "email does not exist"})
+                console.log(1)
+                res.json({ message: "email does not exist"}) //
             } else {
                 bcryptjs.compare(password, user.password, (err, data) => {
                     if (err){
-                        return res.json({message: err})
+                        console.log(2)
+                        return res.json({message: "Incorrect password"})
                     }
                     if (data){
                         const accessToken = jwt.sign(
@@ -144,15 +181,17 @@ router.post("/login", (req, res) => {
                                 res
                                 // .cookie("refreshToken", refreshToken, { httpOnly: true, secure: false, sameSite: "Strict"}) // for web app
                                 // .header("Authorization", accessToken) // for web app
-                                .json({ accessToken: accessToken, refreshToken: refreshToken }) // for mobile apps
+                                .json({ accessToken: accessToken, refreshToken: refreshToken, user: { first_name: user.first_name, last_name: user.last_name, email: user.email, phoneNum: user.phone_number} }) // for mobile apps
                             )
-                            .then(
-                                transporter.sendMail(mailOptions, (err, info) => {
-                                    if (err) return res.status(400).send(err.message)
-                                    res.sendStatus(200)
-                                })
-                            )
+                            // .then(
+                            //     transporter.sendMail(mailOptions, (err, info) => {
+                            //         if (err) return res.status(400).json({message: err.message})
+                            //             res.sendStatus(200)
+                            //     })
+                            // )
+                            console.log(3)
                     } else {
+                        console.log(4)
                         res.json({message: "wrong password!"})
                     }
                 })
@@ -160,8 +199,16 @@ router.post("/login", (req, res) => {
         })
 }) 
 
-router.put("/reset", async(req, res) => {
+router.post("/get-reset-code", async(req, res) => {
     const { email, password, newPassword } = req.body
+    const generate_code = (min, max) => {
+        let code = "";
+        const get_digit = Math.floor(Math.random() * (max - min) + min)
+        while (code.length < 6) {
+            code = code + get_digit
+        }
+        return code;
+    }
     User.findOne({ email: email })
     .then(user => {
         if (user == null){
@@ -172,25 +219,52 @@ router.put("/reset", async(req, res) => {
                     return res.json({message: err})
                 }
                 if (data){
+                    const code = generate_code(1, 10)
                     bcryptjs.hash(newPassword, 10)
                     .then(hashedPassword => {
-                        const user = new User({
-                            password: hashedPassword
+                        if(generated_codes.find(i => i.email === email) == null){
+                            generated_codes.push({email: email, hashedPassword:hashedPassword, code: code})
+                        } else {
+                            generated_codes.map(i => {
+                                if(i.email === email){
+                                    i.code = generate_code(1, 10)
+                                }
+                            })
+                        }
+
+                        const mailOptions = {
+                            from: "resource-pro <peterolanrewaju22@gmail.com>",
+                            to: email,
+                            replyTo: "peterolanrewaju22+resoucepro@gmail.com",
+                            subject: "Reset your code",
+                            html: `<p>${code}</p>`
+                        }
+                        transporter.sendMail(mailOptions, (err, info) => {
+                            console.log(generated_codes)
+                            if (err) return res.status(400).send(err.message)
+                                res.sendStatus(200)
                         })
-                        User.findOneAndUpdate({ email: email, password: hashedPassword })
-                            .then(
-                                refresh_tokens_array = refresh_tokens_array.filter(i => {
-                                    i.email !== email
-                                })
-                            )
-                            .then(
-                                res.send("password updated")
-                            )
                     })
                 } else {
                     res.json({message: "wrong password!"})
                 }
             })
+        }
+    })
+})
+
+router.post("/reset_password", async(req, res) => {
+    const { email, code } = req.body
+    generated_codes.map(i => {
+        if(i.email === email && i.code == code){  // == check for int or str
+            User.findOneAndUpdate({ email: email, password: i.hashedPassword })
+            .then(() => {
+                refresh_tokens_array = refresh_tokens_array.filter(i => i.email !== email);
+                generated_codes = generated_codes.filter(i => i.email !== email);
+            })            
+            .then(
+                res.send("password updated")
+            )
         }
     })
 })
@@ -209,7 +283,7 @@ router.post("/logout", auth, async(req, res) => {
     res.end()
 })
 
-router.post("/refresh", auth, (req, res) => {
+router.post("/refresh-access-token", auth, (req, res) => {
     const refreshToken = req.body.refreshToken
     if (!refreshToken) {
         return res.send("Access denied")
@@ -233,37 +307,57 @@ router.post("/refresh", auth, (req, res) => {
 })
 
 router.get("/domain", auth, async(req, res) => {
-    const domain = req.auth.email && await Domain.find({})
-    res.json(domain)
+    if (req.auth.email) {
+        const temp = await User.findOne({email: req.auth.email})
+        if (temp !== null) {
+            const domain = await Domain.find({ $or : [{ "sectors.delegates": temp.id }, {"creator": temp.id}]})
+            res.json(domain)
+        }
+    } else {
+        res.json(req.auth)
+    }
 })
 
-router.post("/create-domain", auth, async(req, res) => {
+router.post("/create-domain", auth, upload.single("file"), async(req, res) => {
     if (req.auth.email) {
+        const delegateList = []
+        const {domainName, status, title, delegates } = req.body
+        const creator = await User.findOne({email: req.auth.email})
+        const logo = req.file?.path ? path.normalize(req.file.path) : null
+        const _delegates = delegates.split(",")
+        for (i of _delegates) {
+            const temp = await User.findOne({email: i})
+            if (temp !== null && temp.id !== creator.id) {
+                delegateList.push(temp.id)
+            }
+        }
+        if (delegateList.length === 0) {
+            res.json({message: "add at least one valid delegate"})
+            return;
+        }
         const newDomain = new Domain({
-            domain: "University of Ibadan",
-            creator: "Peterven",
-            delegates: [{name:"userid1", role: "member"}, {name:"userid2", role: "member"}, {name:"userid3", role: "admin"}],
-            logo: "http://example.com/image.jpg",
-            public: true,
-            sectors: [{
-                title: "title",
-                issues: [
-                    {
-                        note: "note",
-                        date_resolved: Date.now(),
-                        pictures: ["picture", "pictur"],
-                    }
-                ]},
-            {
-                title: "title",
-                issues: [
-                    {note: "note"},
-                    {note: "note"}
-                ]
-            }]
+            domain: domainName,
+            creator: creator.id,
+            logo: logo,
+            status: status,
+            sectors: [
+                {
+                    title: title,
+                    delegates: delegateList,
+                    // data: [
+                    //     {
+                    //         note: req.body?.note,
+                    //         date_resolved: Date.now(),
+                    //         pictures: [],
+                    //     }
+                    // ]
+                }
+            ]
         })
         const savedd = await newDomain.save()
-        return res.json(savedd)
+        console.log(savedd)
+        return res.json({message: "savedd"})
+        // return res.json(savedd)
     }
     res.status(401).send("not authenticated")
 })
@@ -388,6 +482,19 @@ router.patch("/remove-vote", auth, async(req, res) => {
     }
     res.status(401).send("not authenticated")
 }) 
+
+router.post("/verify-email", async(req, res) => {
+    const { email } = req.body
+    User.findOne({email: email})
+    .then(result => {
+        if (result) {
+            res.json({email: email, message: "exists"})
+        }
+        else{
+            res.json({email: email, message: "notExist"})
+        }
+    })
+})
 
 router.patch("/add-delegate", auth, async(req, res) => {
     if (req.auth.email) {

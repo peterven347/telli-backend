@@ -1,10 +1,33 @@
-const mongoose = require("mongoose")
-const express = require("express")
 const bodyParser = require("body-parser")
+const express = require("express")
+const mongoose = require("mongoose")
+const path = require("path")
+const { createServer } = require("http")
+const { Server } = require("socket.io")
 const app = express()
-const MONGODB_URI = process.env.MONGODB_URI
+const httpServer = createServer(app)
+const io = new Server(httpServer, {
+    cors: {
+        origin: "*",
+        methods: ["GET", "POST"],
+        credentials: true
+      }
+})
 const userRoutes = require("./routes/user")
 
+io.on("connection", (socket) => {
+    const count = io.engine.clientsCount;
+    const count2 = io.of("/").sockets.size;
+    console.log(count, count2)
+    socket.on("hello", (arg, callback) => {
+        console.log(arg)
+        // callback("got it")
+    });
+    socket.emit("hello", "worlfghjkd");
+
+})
+
+app.use('/domain_img', express.static(path.join(__dirname)));
 app.use(bodyParser.json())
 
 // app.use((req, res, next) => {
@@ -13,7 +36,6 @@ app.use(bodyParser.json())
 //     res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, Content-Length, X-Requested-With')
 //     next()
 // })
-const os = require("os")
 app.use("/t", (req, res) => {
     // var nn = os.networkInterfaces()
     // console.log(req.user-agent)
@@ -24,7 +46,7 @@ app.use("/t", (req, res) => {
 })
 
 app.use("/api/user", userRoutes)
-
+  
 app.get("/redirect", (req, res) => {
     res.send("redirect")
 })
@@ -34,15 +56,12 @@ app.use((req, res) => {
 })
 
 const DBoptions = {
-    dbName: "resource-pro",
-    // user: 'username',
-    // pass: 'password',
     socketTimeoutMS: 30000,
     serverSelectionTimeoutMS: 35000,
 }
-mongoose.connect(MONGODB_URI || "mongodb+srv://peter:xoWA84LysnyORc6g@cluster0.adqs0hh.mongodb.net/?authSource=admin", DBoptions)
+mongoose.connect(process.env.MONGODB_URI,  DBoptions)
     .then(() => {
-        app.listen(3030, ()=>{
+        httpServer.listen(3030, () => {
             console.log("server running... 3030")
     })
 })
