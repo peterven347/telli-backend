@@ -1,2 +1,8 @@
 .env
 node_modules/
+
+cert.pem
+key.pem
+files/
+serviceAccountKey.json
+serviceAccountKeyyy.json
